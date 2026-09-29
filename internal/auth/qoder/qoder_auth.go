@@ -47,10 +47,13 @@ const (
 	// QoderIDEVersion is the upstream client version that the COSY signature
 	// scheme expects in payload.cosyVersion and the Cosy-Version header.
 	// 1.0.0 = what qodercli 0.2.16 actually sends in the COSY payload and
-	// Cosy-Version header (captured from live traffic). Earlier builds sent
-	// 0.14.2 (IDE) and qoder2api sends 0.1.43 — server accepts any of these
-	// as long as headers are consistent. Bump cautiously.
-	QoderIDEVersion = "1.0.0"
+	// Cosy-Version header. Earlier builds sent 0.14.2 (IDE) and qoder2api
+	// sends 0.1.43 — server accepts any of these as long as headers are
+	// consistent. However, the server gates the model catalog by this
+	// version: Sonus (smodel, minimal cli 1.0.48) is absent from catalogs
+	// served to 1.0.0 clients. Track the current qodercli release instead
+	// of the legacy captured value.
+	QoderIDEVersion = "1.1.64"
 	// QoderClientType is the client type advertised in the Cosy-Clienttype
 	// header. NPM qodercli (0.2.16) sends "5" (CLI). IDE/web sends "0".
 	QoderClientType = "5"
