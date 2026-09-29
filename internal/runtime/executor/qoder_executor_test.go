@@ -1365,3 +1365,19 @@ func TestQoderParameters(t *testing.T) {
 	}
 }
 
+
+// TestNormalizeQoderMessagesFoldsDeveloperRole verifies that OpenAI's
+// "developer" role is folded into the top-level system text just like
+// "system" — Qoder's upstream rejects both roles inside the messages array.
+func TestNormalizeQoderMessagesFoldsDeveloperRole(t *testing.T) {
+	normalized, systemText := normalizeQoderMessages([]interface{}{
+		map[string]interface{}{"role": "developer", "content": "You are helpful."},
+		map[string]interface{}{"role": "user", "content": "hi"},
+	})
+	if systemText != "You are helpful." {
+		t.Fatalf("systemText = %q, want system prompt folded in", systemText)
+	}
+	if len(normalized) != 1 || normalized[0].(map[string]interface{})["role"] != "user" {
+		t.Fatalf("normalized = %v, want only the user message", normalized)
+	}
+}

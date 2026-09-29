@@ -481,8 +481,10 @@ func normalizeQoderMessages(messages []interface{}) (normalized []interface{}, s
 		}
 		// Collect system messages — Qoder does not accept role="system"
 		// in the messages array, so we remap them to the top-level
-		// "system" request field.
-		if role, _ := msgMap["role"].(string); role == "system" {
+		// "system" request field. OpenAI's newer "developer" role is the
+		// same instruction channel (clients like pi send it for o-series
+		// convention); fold it into the system text the same way.
+		if role, _ := msgMap["role"].(string); role == "system" || role == "developer" {
 			if text := extractContentGeneric(msgMap["content"]); text != "" {
 				systemParts = append(systemParts, text)
 			}
