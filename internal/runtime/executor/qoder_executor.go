@@ -1082,14 +1082,20 @@ func FetchQoderModels(ctx context.Context, auth *cliproxyauth.Auth, cfg *config.
 // qoderclicn `assistant` scene. The current CLI treats assistant as its
 // default interactive scene and keeps all enabled entries in that array.
 func qoderModelListEntries(body []byte, enterpriseVPC bool) gjson.Result {
+	// The byok_enterprise scene carries organization-published custom models
+	// (dogfooding "mode-…" entries). qodercli merges it into the primary scene
+	// for every entitled account — VPC deployment or not — so mirror that
+	// here: the server only returns the array for entitled accounts, and
+	// mergeQoderEnterpriseModels already dedupes by key against the primary
+	// scene.
 	paths := []struct {
 		models     string
 		enterprise string
 	}{
-		{models: "chat"},
-		{models: "data.chat"},
-		{models: "assistant"},
-		{models: "data.assistant"},
+		{models: "chat", enterprise: "byok_enterprise"},
+		{models: "data.chat", enterprise: "data.byok_enterprise"},
+		{models: "assistant", enterprise: "byok_enterprise"},
+		{models: "data.assistant", enterprise: "data.byok_enterprise"},
 	}
 	if enterpriseVPC {
 		paths = []struct {
@@ -1098,8 +1104,8 @@ func qoderModelListEntries(body []byte, enterpriseVPC bool) gjson.Result {
 		}{
 			{models: "assistant", enterprise: "byok_enterprise"},
 			{models: "data.assistant", enterprise: "data.byok_enterprise"},
-			{models: "chat"},
-			{models: "data.chat"},
+			{models: "chat", enterprise: "byok_enterprise"},
+			{models: "data.chat", enterprise: "data.byok_enterprise"},
 		}
 	}
 

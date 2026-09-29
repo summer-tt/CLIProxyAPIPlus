@@ -1207,6 +1207,24 @@ func TestQoderModelListEntriesMergesEnterpriseScene(t *testing.T) {
 	}
 }
 
+func TestQoderModelListEntriesMergesEnterpriseSceneForNonVPC(t *testing.T) {
+	// Organization entitlement (enterprise org on the public endpoint) also
+	// publishes byok_enterprise models; the merge must not be gated on the
+	// VPC deployment flag.
+	entries := qoderModelListEntries([]byte(`{
+		"assistant": [{"key":"gmodel","display_name":"GLM-5.3"}],
+		"byok_enterprise": [
+			{"key":"mode-1","display_name":"DogFooding","source":"organization"}
+		]
+	}`), false)
+	if got := len(entries.Array()); got != 2 {
+		t.Fatalf("entry count = %d, want 2", got)
+	}
+	if entries.Get("1.key").String() != "mode-1" {
+		t.Fatalf("enterprise entry = %v", entries.Get("1"))
+	}
+}
+
 func TestQoderModelListEntriesMergesWrappedEnterpriseScene(t *testing.T) {
 	entries := qoderModelListEntries([]byte(`{
 		"data": {
@@ -1346,3 +1364,4 @@ func TestQoderParameters(t *testing.T) {
 		t.Fatalf("reasoning_effort = %v, want %q", withEffort["reasoning_effort"], "max")
 	}
 }
+
