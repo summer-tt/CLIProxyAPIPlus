@@ -1003,15 +1003,19 @@ func FetchQoderModels(ctx context.Context, auth *cliproxyauth.Auth, cfg *config.
 		if display == "" {
 			display = key
 		}
+		// context_config windows are the context tiers the server publishes
+		// for the model (e.g. 200K default / 400K / 1M); max_input_tokens is
+		// a billing/telemetry figure that can sit below the largest tier
+		// (e.g. gmodel/smodel publish 180000 alongside a 1M tier). Advertise
+		// the largest known window so clients see the model's real maximum
+		// context, falling back to max_input_tokens when no tiers exist.
 		ctxLen := int(entry.Get("max_input_tokens").Int())
-		if ctxLen == 0 {
-			entry.Get("context_config").ForEach(func(_, contextEntry gjson.Result) bool {
-				if tokenCount := int(contextEntry.Get("token_count").Int()); tokenCount > ctxLen {
-					ctxLen = tokenCount
-				}
-				return true
-			})
-		}
+		entry.Get("context_config").ForEach(func(_, contextEntry gjson.Result) bool {
+			if tokenCount := int(contextEntry.Get("token_count").Int()); tokenCount > ctxLen {
+				ctxLen = tokenCount
+			}
+			return true
+		})
 		isVL := entry.Get("is_vl").Bool()
 
 		// Cache the raw upstream JSON for this model so ExecuteStream can

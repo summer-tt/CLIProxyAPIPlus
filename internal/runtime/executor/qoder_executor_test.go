@@ -1188,6 +1188,54 @@ func TestFetchQoderModels_UsesCurrentCNSceneAndProtocol(t *testing.T) {
 	}
 }
 
+// TestFetchQoderModels_ContextLengthPrefersLargestWindow verifies that the
+// advertised context length takes the largest context_config tier into
+// account instead of capping at max_input_tokens.
+func TestFetchQoderModels_ContextLengthPrefersLargestWindow(t *testing.T) {
+	cfg := &config.Config{}
+	storage := &qoder.QoderTokenStorage{
+		Token:          "jt-test",
+		UserID:         "user-1",
+		MachineID:      "11111111-2222-3333-4444-555555555555",
+		OrganizationID: "org-1",
+	}
+	auth := &cliproxyauth.Auth{Provider: "qoder", Storage: storage}
+
+	body := `{"assistant":[
+		{"key":"tiered","display_name":"Tiered","enable":true,"max_input_tokens":180000,
+		 "context_config":{"200K":{"is_default":true,"token_count":200000},"400K":{"token_count":400000},"1M":{"token_count":1000000}}},
+		{"key":"untiered","display_name":"Untiered","enable":true,"max_input_tokens":200000},
+		{"key":"bigmax","display_name":"BigMax","enable":true,"max_input_tokens":1000000,
+		 "context_config":{"200K":{"is_default":true,"token_count":200000}}}
+	]}`
+	ctx := context.WithValue(context.Background(), "cliproxy.roundtripper", qoderRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Path == "/api/v2/quota/usage" {
+			body = `{"userQuota":{"total":100,"used":1,"remaining":99,"percentage":0.01,"unit":"credits"}}`
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	}))
+
+	models := FetchQoderModels(ctx, auth, cfg)
+	got := make(map[string]int, len(models))
+	for _, m := range models {
+		got[m.ID] = m.ContextLength
+	}
+	if got["qoder/tiered"] != 1000000 {
+		t.Fatalf("tiered context length = %d, want 1000000 (largest context_config tier must win over max_input_tokens)", got["qoder/tiered"])
+	}
+	if got["qoder/untiered"] != 200000 {
+		t.Fatalf("untiered context length = %d, want 200000 (max_input_tokens fallback)", got["qoder/untiered"])
+	}
+	if got["qoder/bigmax"] != 1000000 {
+		t.Fatalf("bigmax context length = %d, want 1000000", got["qoder/bigmax"])
+	}
+}
+
 func TestQoderModelListEntriesMergesEnterpriseScene(t *testing.T) {
 	entries := qoderModelListEntries([]byte(`{
 		"assistant": [{"key":"shared","display_name":"Shared"}],
@@ -1364,7 +1412,6 @@ func TestQoderParameters(t *testing.T) {
 		t.Fatalf("reasoning_effort = %v, want %q", withEffort["reasoning_effort"], "max")
 	}
 }
-
 
 // TestNormalizeQoderMessagesFoldsDeveloperRole verifies that OpenAI's
 // "developer" role is folded into the top-level system text just like
