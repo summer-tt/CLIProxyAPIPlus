@@ -114,6 +114,11 @@ func (e *QoderExecutor) ExecuteStream(ctx context.Context, authRecord *cliproxya
 		return nil, err
 	}
 
+	contextLength, err := configuredQoderContextLength(qoderModel, modelConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	isReasoning, _ := modelConfig["is_reasoning"].(bool)
 
 	// Qoder exposes the effort levels a model accepts in
@@ -180,7 +185,7 @@ func (e *QoderExecutor) ExecuteStream(ctx context.Context, authRecord *cliproxya
 		"system":           systemText,
 		"messages":         normalized,
 		"tools":            []interface{}{},
-		"parameters":       qoderParameters(maxTokens, effort),
+		"parameters":       qoderParameters(maxTokens, effort, contextLength),
 		"chat_context": map[string]interface{}{
 			"chatPrompt": "",
 			"imageUrls":  nil,
@@ -1292,13 +1297,39 @@ func FetchQoderUsage(ctx context.Context, auth *cliproxyauth.Auth, cfg *config.C
 // the canonical order used by the thinking pipeline.
 var qoderEffortOrder = []string{"minimal", "low", "medium", "high", "xhigh", "max"}
 
-// qoderParameters builds the request "parameters" object. Qoder reads the
-// selected reasoning level from parameters.reasoning_effort; omitting the field
-// leaves the model on its own server-side default.
-func qoderParameters(maxTokens int, effort string) map[string]interface{} {
+// configuredQoderContextLength selects the proxy-managed window for the models
+// advertised to Pi with a 1M context. Verify the actual account's catalog before
+// sending it; max_input_tokens is not a substitute for a selectable tier.
+// Other models retain their existing server-side window selection.
+func configuredQoderContextLength(model string, modelConfig map[string]interface{}) (int, error) {
+	switch model {
+	case "gmodel", "gfmodel", "smodel", "ultimate":
+	default:
+		return 0, nil
+	}
+	const contextLength = 1000000
+	windows, _ := modelConfig["context_config"].(map[string]interface{})
+	for _, raw := range windows {
+		window, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if tokenCount, ok := window["token_count"].(float64); ok && tokenCount == contextLength {
+			return contextLength, nil
+		}
+	}
+	return 0, fmt.Errorf("qoder: model %q does not publish configured context_length %d", model, contextLength)
+}
+
+// qoderParameters builds the request "parameters" object. Context window and
+// reasoning selections must be explicit here, not just in model metadata.
+func qoderParameters(maxTokens int, effort string, contextLength int) map[string]interface{} {
 	params := map[string]interface{}{"max_tokens": maxTokens}
 	if effort != "" {
 		params["reasoning_effort"] = effort
+	}
+	if contextLength > 0 {
+		params["context_length"] = contextLength
 	}
 	return params
 }

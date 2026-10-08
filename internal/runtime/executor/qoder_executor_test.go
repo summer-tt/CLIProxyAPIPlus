@@ -1399,7 +1399,7 @@ func TestResolveQoderEffort(t *testing.T) {
 // TestQoderParameters verifies that the effort only appears when one was
 // resolved, so requests without a selection keep the previous wire shape.
 func TestQoderParameters(t *testing.T) {
-	withoutEffort := qoderParameters(4096, "")
+	withoutEffort := qoderParameters(4096, "", 0)
 	if _, present := withoutEffort["reasoning_effort"]; present {
 		t.Fatal("reasoning_effort must be omitted when no effort was resolved")
 	}
@@ -1407,7 +1407,7 @@ func TestQoderParameters(t *testing.T) {
 		t.Fatalf("max_tokens = %v, want 4096", withoutEffort["max_tokens"])
 	}
 
-	withEffort := qoderParameters(4096, "max")
+	withEffort := qoderParameters(4096, "max", 0)
 	if withEffort["reasoning_effort"] != "max" {
 		t.Fatalf("reasoning_effort = %v, want %q", withEffort["reasoning_effort"], "max")
 	}
